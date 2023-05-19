@@ -1,5 +1,7 @@
 # Prisma Learning
 
+(This readme was handwritten by https://github.com/bazmurphy)
+
 Iniitalise as a git repository `git init`
 
 Initialise as a node project `npm init -y`
