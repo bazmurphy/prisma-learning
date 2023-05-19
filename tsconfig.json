@@ -1,0 +1,10 @@
+// this is the config that is recommended for your tsconfig.json by PRISMA
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "outDir": "dist",
+    "strict": true,
+    "lib": ["esnext"],
+    "esModuleInterop": true
+  }
+}
