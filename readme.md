@@ -213,7 +213,7 @@ async function main() {
   // we will write the Prisma Client queries here
 }
 
-// call main
+// we call main
 main()
   // catch any errors and print them out
   .catch(error => {
@@ -230,3 +230,49 @@ So now we can write our queries inside this `main` function.
 
 Almost everything in Prisma is asynchronous, so thats why main is an async function. It wil run, wait, and give you a result.
 
+## create
+with create, we must pass an object with a key "data" which itself is an object and inside that pass in all the data
+we are waiting for prisma to create a user for us and put in our database with the name of Baz and return that user and then we console log it
+```
+  const user = await prisma.user.create({ data: { name: "Baz" }})
+  console.log(user);
+```
+
+## running main
+
+we need to add `"dev" : "nodemon script.ts"` to our `package.json`
+and that will automatically compile and re-run our script.ts file evertyime we make changes.
+
+```
+[nodemon] starting `ts-node script.ts`
+{ id: 1, name: 'Baz' }
+[nodemon] clean exit - waiting for changes before restart
+```
+Change the name to "Bob" and save, nodemon re-runs and adds "Bob" to the database.
+
+```
+[nodemon] starting `ts-node script.ts`
+{ id: 2, name: 'Bob' }
+```
+
+## findMany (find all the users)
+To find all of our users:
+
+```
+  const users = await prisma.user.findMany();
+  console.log(users);
+```
+
+```
+[nodemon] starting `ts-node script.ts`
+[ { id: 1, name: 'Baz' }, { id: 2, name: 'Bob' } ]
+```
+
+Summary:
+1. at the very top you create your schema
+2. the schema defines the `datasource db` you are using (the database you are using)
+3. the schema defines the generator for how you go from your schema to your typescript code
+4. and it defines all of your different models and enums and everything related to your databse ALL INSIDE THIS ONE FILE `schema.prisma`
+5. then you create your migrations, and your migrations allow you to make changes to your database based on the changes you make in the `schema.prisma` so when you update the file it will automatically create a migration that moves you to the next step so your database is always up to date with this file.
+6. in doing that migration you are updating your code with the `generator client`, the generator creates the `@prisma/client` where you `import { PrismaClient }` from, which allows you to interact with your code through this Prisma library. So you do not have to write raw SQL Queries.
+7. So the schema file allows you to define your database, migrate your database, and interact with your database. It is your single source of truth and really important to understand.
