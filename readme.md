@@ -2,7 +2,7 @@
 
 (This readme was handwritten by https://github.com/bazmurphy)
 
-Iniitalise as a git repository `git init`
+Initalise as a git repository `git init`
 
 Initialise as a node project `npm init -y`
 
@@ -204,3 +204,29 @@ When we type `prisma.` we can see all the methods as well as `user` which repres
 and so when we do `prisma.user.` we can see a bunch of the methods
 
 for example `prisma.user.findFirst` to get the first user based on the criteria we pass it.
+
+## main function
+
+```
+// we create a function called main
+async function main() {
+  // we will write the Prisma Client queries here
+}
+
+// call main
+main()
+  // catch any errors and print them out
+  .catch(error => {
+    console.error(error.message)
+  })
+  // or if we are done, we finally disconnect from the prisma database
+  // although it automatically disconnects
+  .finally(async() => {
+    await prisma.$disconnect()
+  })
+```
+
+So now we can write our queries inside this `main` function.
+
+Almost everything in Prisma is asynchronous, so thats why main is an async function. It wil run, wait, and give you a result.
+
