@@ -49,11 +49,12 @@ SCHEMA: The name of the schema inside the database
 If you're unsure what to provide for the schema parameter for a PostgreSQL connection URL, you can probably omit it. In that case, the default schema name public will be used.
 
 We should install this VSCode Extension for syntax highlighting:
-   Name: Prisma
-   Description: Adds syntax highlighting, formatting, auto-completion, jump-to-definition and linting for .prisma files.
-   VS Marketplace Link: https://marketplace.visualstudio.com/items?itemName=Prisma.prisma
+Name: Prisma
+Description: Adds syntax highlighting, formatting, auto-completion, jump-to-definition and linting for .prisma files.
+VS Marketplace Link: https://marketplace.visualstudio.com/items?itemName=Prisma.prisma
 
 prisma has a formatter built in, so you can format your file with `npx prisma format` if you need to, it is better to do it within VSCode settings (in the JSON) :
+
 ```
 "editor.formatOnSave": true,
 "editor.defaultFormatter": "Prisma.prisma",
@@ -65,7 +66,7 @@ you will define a bunch of code for your database in this prisma format
 it is not SQL it is not NoSQL it is prisma, it is its own format, separate from any other type of formatting
 you need to define your code in this prisma specific format
 
-##  generator
+## generator
 
 and when you run your `generator` what are you generating it into, in this case we will generate it into the `prisma-client-js`
 
@@ -90,7 +91,7 @@ model User {
 
 here is a Model Schema with an id and a name
 
-Defining something in the prisma schema DOES NOT CREATE OR DO to our Database.
+Defining something in the prisma schema DOES NOT CREATE OR DO ANYTHING to our Database.
 
 ## migrating
 
@@ -195,10 +196,12 @@ const prisma = new PrismaClient()
 So now we can start using that client because it generated it for us and stored it in that particular location `\node_modules\@prisma\client`
 
 Now we create a `script.ts` and copy that in:
+
 ```
 import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 ```
+
 When we type `prisma.` we can see all the methods as well as `user` which represents the User table we just created from the Schema Model it automatically generated for us
 
 and so when we do `prisma.user.` we can see a bunch of the methods
@@ -231,8 +234,10 @@ So now we can write our queries inside this `main` function.
 Almost everything in Prisma is asynchronous, so thats why main is an async function. It wil run, wait, and give you a result.
 
 ## create
+
 with create, we must pass an object with a key "data" which itself is an object and inside that pass in all the data
 we are waiting for prisma to create a user for us and put in our database with the name of Baz and return that user and then we console log it
+
 ```
   const user = await prisma.user.create({ data: { name: "Baz" }})
   console.log(user);
@@ -248,6 +253,7 @@ and that will automatically compile and re-run our script.ts file evertyime we m
 { id: 1, name: 'Baz' }
 [nodemon] clean exit - waiting for changes before restart
 ```
+
 Change the name to "Bob" and save, nodemon re-runs and adds "Bob" to the database.
 
 ```
@@ -256,6 +262,7 @@ Change the name to "Bob" and save, nodemon re-runs and adds "Bob" to the databas
 ```
 
 ## findMany (find all the users)
+
 To find all of our users:
 
 ```
@@ -269,6 +276,7 @@ To find all of our users:
 ```
 
 Summary:
+
 1. at the very top you create your schema
 2. the schema defines the `datasource db` you are using (the database you are using)
 3. the schema defines the generator for how you go from your schema to your typescript code
@@ -276,3 +284,106 @@ Summary:
 5. then you create your migrations, and your migrations allow you to make changes to your database based on the changes you make in the `schema.prisma` so when you update the file it will automatically create a migration that moves you to the next step so your database is always up to date with this file.
 6. in doing that migration you are updating your code with the `generator client`, the generator creates the `@prisma/client` where you `import { PrismaClient }` from, which allows you to interact with your code through this Prisma library. So you do not have to write raw SQL Queries.
 7. So the schema file allows you to define your database, migrate your database, and interact with your database. It is your single source of truth and really important to understand.
+
+## deeper dive on generators & datasources
+
+Now we will cover everything you can do in the schema file for prisma. And it is a lot.
+
+### datasource
+
+you can only ever have one datasource - prisma is directly connecting to your database
+it must have a provider which is the name of the database you are using
+and it must have a url which links to that particular database
+it is really important to use environment variables to store all your database information to keep it secure
+and you can change the database that you are using for development, stating, and production etc.
+
+### generators
+
+you can have multiple generators for our prisma client
+we could have some other generators for example for graphQL there are tonnes of different generators out there
+to define the generator, you just give it the provider and that links to the name of the generator
+
+### models
+
+models represent the different tables inside your database
+each model is composed of a bunch of different fields
+each row is considered a field
+a field is composed of 4 different parts (2 mandatory, and then 2 optional)
+
+1. the name (id, name, email)
+2. the type of that field (Int, String)
+3. field type modifier (the name is optional) String?
+4. attributes (all the things that start with @) @id @defaultvalue
+
+field types:
+
+1. `Int` - Integer
+2. `String` - String
+3. `Boolean` - Boolean
+4. `BigInt` - Very Large Number
+5. `Float` - Float
+6. `Json` - Json Data Type (not everything supports this but PostgreSQL does)
+7. `Bytes` - blob (file data, big data that you need to convert down into raw byte information)
+8. `Unsupported` - it is not something you will ever write yourself inside of a Prisma Schema file (Prisma allows you to take a Database that already exists and convert it to a Schema file, and if it does not support that Data type it will use this)
+9. Using another Model eg. author `User`, when you save it will autopopulate a lot of information, `author User @relation(fields: [userId], references: [id])`, this is how you make different relationships inside of PostgreSQL.
+
+### 3 Different types of relationship
+
+1. one to many relationship - a `Post` has one `Author` and a `User` has many `Posts`
+2. many to many relationship - one `Post` could have a `Category` and a `Category` could have many `Posts` (so each post has many Categories and many Categories have many Posts)
+3. one to one relationship - a `User` has a table of `Preferences` - each `User` has one reference in that `Preference` table - and each `Preference` has one `User` it links to
+
+### One to Many Relationship
+
+A User has many Posts
+
+#### Field Type Modifier
+
+the `Post[]` the Array syntax is a **Field Type Modifier**
+there are only two modifiers you need to know of
+
+1. the `[]` array one, which means there could be multiple of this thing, example `Post[]`
+2. the `?` which means it is optional, example `Json?`
+
+the `fields` is stating which field inside of the `Post` (`authorId`) is referencing the `id` inside of User table
+the `authorId` field in our `Post` references the `id` field in our User and those two should be the same
+whenever the `authorId` is the same as the `id` that means they are linked together, like a foreign key relationship in SQL
+
+#### autoincrement vs uuid
+
+instead of:
+
+`id Int @id @default(autoincrement())`
+
+we can use:
+
+`id String @id @default(uuid())`
+
+But we must also now change `authorId` to a `String` type
+
+And also our `Post` should have an `id`
+
+```
+model User {
+  id          String  @id @default(uuid())
+  name        String
+  email       String
+  isAdmin     Boolean
+  preferences Json
+  posts       Post[]
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  rating    Float
+  createdAt DateTime
+  updatedAt DateTime
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+}
+
+```
+
+###
+
+What happens if a `User` can have 2 references to a `Post`
