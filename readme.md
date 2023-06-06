@@ -285,7 +285,9 @@ Summary:
 6. in doing that migration you are updating your code with the `generator client`, the generator creates the `@prisma/client` where you `import { PrismaClient }` from, which allows you to interact with your code through this Prisma library. So you do not have to write raw SQL Queries.
 7. So the schema file allows you to define your database, migrate your database, and interact with your database. It is your single source of truth and really important to understand.
 
-## deeper dive on generators & datasources
+---
+
+## deeper dive on datasources & generators
 
 Now we will cover everything you can do in the schema file for prisma. And it is a lot.
 
@@ -302,6 +304,8 @@ and you can change the database that you are using for development, stating, and
 you can have multiple generators for our prisma client
 we could have some other generators for example for graphQL there are tonnes of different generators out there
 to define the generator, you just give it the provider and that links to the name of the generator
+
+---
 
 ### models
 
@@ -327,13 +331,17 @@ field types:
 8. `Unsupported` - it is not something you will ever write yourself inside of a Prisma Schema file (Prisma allows you to take a Database that already exists and convert it to a Schema file, and if it does not support that Data type it will use this)
 9. Using another Model eg. author `User`, when you save it will autopopulate a lot of information, `author User @relation(fields: [userId], references: [id])`, this is how you make different relationships inside of PostgreSQL.
 
-### 3 Different types of relationship
+---
+
+### 3 Different types of Relationship `relation`
 
 1. one to many relationship - a `Post` has one `Author` and a `User` has many `Posts`
 2. many to many relationship - one `Post` could have a `Category` and a `Category` could have many `Posts` (so each post has many Categories and many Categories have many Posts)
 3. one to one relationship - a `User` has a table of `Preferences` - each `User` has one reference in that `Preference` table - and each `Preference` has one `User` it links to
 
-### One to Many Relationship
+---
+
+### One to Many Relationships
 
 A User has many Posts
 
@@ -365,7 +373,7 @@ And also our `Post` should have an `id`
 
 ```
 model User {
-  id          String  @id @default(uuid())
+  id          String  @id @default(uuid())  <--- here
   name        String
   email       String
   isAdmin     Boolean
@@ -378,12 +386,259 @@ model Post {
   rating    Float
   createdAt DateTime
   updatedAt DateTime
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])   <--- here
+  authorId  String   <--- here
 }
 
 ```
 
-###
+### Disambiguating Multiple One to Many Relationships
 
 What happens if a `User` can have 2 references to a `Post`
+
+A `Post` can be `favourited` and a `User` can have multiple `favourited` `Posts` and multiple `Posts` that they have `written`
+
+We have to give the relationship a `Label` and that `Label` can be shared with all the other fields
+
+These are `Labels`: `"WrittenPosts"` and `"FavouritePosts"`
+
+```
+model User {
+  id             String  @id @default(uuid())
+  name           String
+  email          String
+  isAdmin        Boolean
+  preferences    Json
+  writtenPosts   Post[]  @relation("WrittenPosts")   <--- here
+  favouritePosts Post[]  @relation("FavouritePosts")   <--- here
+}
+
+model Post {
+  id             String   @id @default(uuid())
+  rating         Float
+  createdAt      DateTime
+  updatedAt      DateTime
+  author         User     @relation("WrittenPosts", fields: [authorId], references: [id])   <--- here
+  authorId       String
+  favouritedBy   User?     @relation("FavouritePosts", fields: [favouritedById], references: [id])   <--- here
+  favouritedById String?
+}
+```
+
+This `"WrittenPosts"` references the `author` and `authorId` section
+This `"FavouritedPosts"` references the `favouritedBy` and `favouritedById` section
+
+You only need to do this extra step **if you have two references to the exact same Table**
+
+We also make our `favouritedBy` and `favouritedById` optional using `?` (because both of those fields are linked to the same thing)
+
+---
+
+### Many to Many Relationships
+
+We have a Model `Category` with an `id` and multiple posts
+One `Category` can reference multiple different `Post`s
+And a `Post` can have multiple different `Category`s
+
+```
+model Post {
+  id             String     @id @default(uuid())
+  rating         Float
+  createdAt      DateTime
+  updatedAt      DateTime
+  author         User       @relation("WrittenPosts", fields: [authorId], references: [id])
+  authorId       String
+  favouritedBy   User?      @relation("FavouritePosts", fields: [favouritedById], references: [id])
+  favouritedById String?
+  categories     Category[]   <----- here
+}
+
+model Category {
+  id   String @id @default(uuid())
+  post Post[]   <----- here
+}
+
+```
+
+We don't need to add any relationships.
+Prisma automatically knows our `Category[]` is referencing our `Category` Model and our `Post[]` is referencing our `Post` Model.
+Prisma will automatically create a JOIN Table between the 2 that is going to hookup these relationships for us.
+All the complicated join stuff you would have to do with many to many dimensional relationships is taken care of by Prisma.
+
+So all of our `Post`s can have multiple `Category`s and all of our `Category`s can have multiple `Post`s
+
+---
+
+### One to One Relationship
+
+One `User` will have one set of user `Preferences`
+
+Now we want to reference the `User` table from our `UserPreference`
+
+Since we are doing a One to One Relationship you can store the relationship on EITHER the `User` table or the `UserPreference` table
+
+```
+model User {
+  id             String          @id @default(uuid())
+  name           String
+  email          String
+  isAdmin        Boolean
+  writtenPosts   Post[]          @relation("WrittenPosts")
+  favouritePosts Post[]          @relation("FavouritePosts")
+  UserPreference UserPreference?   <----- here
+}
+
+model UserPreference {
+  id            String  @id @default(uuid())
+  emailUpodates Boolean
+  user          User    @relation(fields: [userId], references: [id])   <----- here
+  userId        String  @unique   <----- here
+}
+```
+
+It must be unique because we can only ever have one `UserPreference` reference one `User`
+We can't have multiple `UserPreference`s referencing the same `User`
+Thats how the One to One Relationship works.
+
+---
+
+### Attributes `@`
+
+#### Field Based Attributes
+
+These are in the same row as the fields and they have a single `@` infront of them
+
+So far we have seen `@id` `@default` `@relation`
+But there are many more field based attributes...
+
+`@unique`
+Example: `email String @unique` Now every single email is going to be unique..
+
+`@updatedAt`
+Every time we update the record it will automatically update as the current timestamp
+
+`@default(now())`
+Every time the record is created it will automatically add the current timestamp
+
+```
+model User {
+  id             String          @id @default(uuid())
+  age            Int
+  name           String
+  email          String          @unique
+  isAdmin        Boolean
+  writtenPosts   Post[]          @relation("WrittenPosts")
+  favouritePosts Post[]          @relation("FavouritePosts")
+  UserPreference UserPreference?
+}
+
+model UserPreference {
+  id            String  @id @default(uuid())
+  emailUpdates Boolean
+  user          User    @relation(fields: [userId], references: [id])
+  userId        String  @unique
+}
+
+model Post {
+  id             String     @id @default(uuid())
+  title          String
+  averageRating  Float
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  author         User       @relation("WrittenPosts", fields: [authorId], references: [id])
+  authorId       String
+  favouritedBy   User?      @relation("FavouritePosts", fields: [favouritedById], references: [id])
+  favouritedById String?
+  categories     Category[]
+}
+
+model Category {
+  id   String @id @default(uuid())
+  name String @unique
+  post Post[]
+}
+
+```
+
+#### Block Level Attributes
+
+Block Level Atrributes are on their own line completely inside of the Model `{ }` and they have 2 @ symbols `@@`
+
+Examples: `@@unique()` `@@index()` `@@id()`
+
+Example: We can have a Uniqueness constraint on `name` and `age`
+
+So we cannot have a User with the same `name`and the same`age`
+
+We can also create an `index` on the `email` field, this will help with sorting and performance..
+If we wanted to Query by `email` it would be good to have an index
+
+```
+model User {
+  id             String          @id @default(uuid())
+  age            Int
+  name           String
+  email          String          @unique
+  isAdmin        Boolean
+  writtenPosts   Post[]          @relation("WrittenPosts")
+  favouritePosts Post[]          @relation("FavouritePosts")
+  UserPreference UserPreference?
+
+  @@unique([age, name])   <--- here
+  @@index([email])
+}
+```
+
+We can create a COMPOSITE `id` which contains 2 different things
+
+So instead of having a specific `id` we have a COMPOSITE `id`
+Where our unique `title` and `author` combination represent our `id` for the `Post` instead of the `id` at the top
+
+```
+model Post {
+  // id             String     @id @default(uuid())
+  title          String
+  averageRating  Float
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  author         User       @relation("WrittenPosts", fields: [authorId], references: [id])
+  authorId       String
+  favouritedBy   User?      @relation("FavouritePosts", fields: [favouritedById], references: [id])
+  favouritedById String?
+  categories     Category[]
+
+  @@id([title, authorId])
+}
+```
+
+---
+
+### Enum
+
+If you use that hard coded list of values that a field value can be, using an `Enum` is a great way to do that
+Example: `BASIC`, `EDITOR`, `ADMIN`
+It will only allow you to specify one of those specific values instead of any value
+
+```
+model User {
+  id             String          @id @default(uuid())
+  age            Int
+  name           String
+  email          String          @unique
+  role           Role            @default(BASIC)   <--- here
+  writtenPosts   Post[]          @relation("WrittenPosts")
+  favouritePosts Post[]          @relation("FavouritePosts")
+  UserPreference UserPreference?
+
+  @@unique([age, name])
+  @@index([email])
+}
+
+enum Role {   <--- here
+  BASIC
+  EDITOR
+  ADMIN
+}
+```
+
+---
