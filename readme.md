@@ -174,6 +174,8 @@ We don't have a client yet because we haven't installed the client library.
 
 This will install the client that will allow us to generate and use this client
 
+## generate your client
+
 If you needed to manually regenerate your client for any reason you can:
 
 `npx prisma generate`
@@ -642,3 +644,471 @@ enum Role {   <--- here
 ```
 
 ---
+
+## Migrating our Database
+
+Once our schema is defined... we can migrate our database:
+
+`npx prisma migrate dev`
+
+```
+Applying migration `20230606113235_test`
+
+The following migration(s) have been created and applied from new schema changes:
+
+migrations/
+  └─ 20230606113235_test/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+
+✔ Generated Prisma Client (4.14.1 | library) to .\node_modules\@prisma\client in 178ms
+```
+
+---
+
+## Prisma Functionalities
+
+### `new PrismaClient()`
+
+When you create the `new PrismaClient()` it actually manages different connections for you
+If your Database supports 5 concurrent connections for you
+So its really important that you only use **ONE INSTANCE** of the `PrismaClient()` otherwise you can bog down your Database with too many connections.
+
+### Create
+
+`.create()`
+takes in an object
+first key is `data` which is an object
+that takes all the required field key/values to create a row/record
+
+```
+  await prisma.user.create({
+    data: { name: "Baz", email: "baz@test.com", age: 99 },
+  });
+```
+
+we can use `create` inside of here to make nested creations in other referenced Tables
+here we add a `UserPreference` (which is another Table/Model) and set the `emailUpdates: true` for example:
+
+```
+await prisma.user.create({
+  data: {
+    name: "Baz",
+    email: "baz@test2.com",
+    age: 99,
+    userPreference: {
+      create: {
+        emailUpdates: true,
+      },
+    },
+  }
+});
+```
+
+### `select` or `include`
+
+the second key can be either `select` or `include`
+
+`select` allows us to choose exact what is returned to us, in the example below, only the name from the `User` Model and the `id` from the `UserPreference` Model.
+
+```
+await prisma.user.create({
+  data: {
+    name: "Baz",
+    email: "baz@test2.com",
+    age: 99,
+    userPreference: {
+      create: {
+        emailUpdates: true,
+      },
+    },
+  },
+  select: {
+    name: true,
+    userPreference: { select: { id: true } },
+  },
+});
+```
+
+returns:
+
+```
+{
+  name: 'Baz',
+  userPreference: { id: '5f174d35-c548-4266-9d90-bfe96cae0709' }
+}
+```
+
+`include`
+allows us to include different references to other fields in other Models/Tables.
+for example here in the return we include the `userPreference`
+
+```
+await prisma.user.create({
+  data: {
+    name: "Baz",
+    email: "baz@test2.com",
+    age: 99,
+    userPreference: {
+      create: {
+        emailUpdates: true,
+      },
+    },
+  },
+  include: {
+     userPreference: true,
+  },
+});
+```
+
+returns:
+
+```
+{
+  id: '1ed699fd-e198-400d-a9a1-210922de7b5d',
+  age: 99,
+  name: 'Baz',
+  email: 'baz@test2.com',
+  role: 'BASIC',
+  userPreferenceId: '498790b8-e075-46d8-af9f-e7977607fd8e',
+  userPreference: { id: '498790b8-e075-46d8-af9f-e7977607fd8e', emailUpdates: true }
+}
+```
+
+### `new PrismaClient({ log: ["query"] })`
+
+If you want to log out all the queries we can add an object and provide the key of log, and an array with the values of everything we want to log.
+
+This is good if you need to debug anything
+
+An example of a logged prisma operation:
+
+```
+prisma:query BEGIN
+prisma:query INSERT INTO "public"."UserPreference" ("id","emailUpdates") VALUES ($1,$2) RETURNING "public"."UserPreference"."id"
+prisma:query INSERT INTO "public"."User" ("id","age","name","email","role","userPreferenceId") VALUES ($1,$2,$3,$4,$5,$6) RETURNING "public"."User"."id"
+prisma:query SELECT "public"."User"."id", "public"."User"."name", "public"."User"."userPreferenceId" FROM "public"."User" WHERE "public"."User"."id" = $1 LIMIT $2 OFFSET $3
+prisma:query SELECT "public"."UserPreference"."id" FROM "public"."UserPreference" WHERE "public"."UserPreference"."id" IN ($1) OFFSET $2
+prisma:query COMMIT
+```
+
+### Create Many `createMany()`
+
+You pass in an **array** for `data` and **not a single object**.
+
+Note: You CANNOT use the `select` clause inside a `createMany()`
+
+```
+await prisma.user.createMany({
+  data: [
+    { name: "person1", age: 20, email: "person1@test.com" },
+    { name: "person2", age: 30, email: "person2@test.com" },
+    { name: "person3", age: 40, email: "person3@test.com" },
+  ],
+});
+
+```
+
+### Find Unique `findUnique()`
+
+Find things by `@unique` keys in the Database
+
+We can use a `where : {}` clause
+
+You can also optionally add a `select` or `include` (the same as when using `create()`)
+
+```
+await prisma.user.findUnique({
+  where: {
+    email: "person1@test.com",
+  },
+});
+```
+
+#### Uniqueness Constraints on Multiple Fields
+
+In our Prisma Schema for `User` Model.. we have `@@unique([age, name])`
+Prisma creates these as `age_name` where there is the key names with underscores separating them
+We can use this as `age_name` in a where and pass it each key/value we are looking for.
+
+And it will find the `User` that has that `@@unique` `age` and `name` combination
+
+```
+await prisma.user.findUnique({
+  where: {
+    age_name: {
+      age: 30,
+      name: "person2",
+    },
+  },
+});
+```
+
+#### `findUnique()` on NON unique
+
+We cannot search for things using where that DO NOT HAVE A UNIQUENESS CONSTRAINT on them.
+
+For example we cannot `findUnique()` on `name`, if we wanted to search for `name` we need to use `find`
+
+### Find First `findFirst()`
+
+This will find the first thing that matches a query, **it allows you to use any property** in `where: { }`
+
+```
+await prisma.user.findFirst({
+  where: {
+    name: "person3",
+  },
+});
+```
+
+### Find Many `findMany()`
+
+This will find all records that meet the criteria
+
+```
+await prisma.user.findMany({
+  where: {
+    email: {
+      contains: "person",
+    },
+  },
+});
+```
+
+#### Distinct `distinct: []`
+
+We can add a `distinct: []` after the `where`
+`distinct` is an array `[]` where we add the properties we want to filter by
+We can add multiple entries to that array `["property1", "property2"]`
+
+```
+  await prisma.user.findMany({
+    where: {
+      name: {
+        contains: "person",
+      },
+    },
+    distinct: ["name"],
+  });
+```
+
+#### Pagination `take` & `skip`
+
+`take: 0` comes after `where` and you provide it a number, and it returns that many records/rows
+
+`skip: 0` can also be added so we can skip the first X record/rows
+
+The example below skips the 1st record/row and then returns 2 Users after that
+
+```
+await prisma.user.findMany({
+  where: {
+    name: {
+      contains: "person",
+    },
+  },
+  take: 2,
+  skip: 1,
+});
+```
+
+#### OrderBy `orderBy: { }`
+
+We can add an `orderBy: { key: "asc/desc" }` to order the records/rows
+
+```
+const findManyPaginatedUsers = await prisma.user.findMany({
+  where: {
+    name: {
+      contains: "person",
+    },
+  },
+  orderBy: {
+    age: "asc",
+  }
+});
+```
+
+#### Where Clauses `where: { }`
+
+#### Equals `equals`
+
+`equals` is equal
+
+```
+where: {
+  name: { equals: "person" }
+}
+```
+
+#### Not `not`
+
+`not` is not equal
+
+```
+where: {
+  name: { not: "person" }
+}
+```
+
+#### In `in`
+
+`in: []` a specified list of all values we are looking for
+
+```
+await prisma.user.findMany({
+  where: {
+    name: { in: ["person1", "person2"] },
+  },
+});
+```
+
+### Not In `notIn`
+
+`notIn: []` the opposite of the above, where we want to find all values that are NOT these
+
+```
+await prisma.user.findMany({
+  where: {
+    name: { notIn: ["person1", "person2"] },
+  },
+});
+```
+
+#### Less Than `lt`
+
+`lt: 20` find all records where X is less than the given value
+
+```
+await prisma.user.findMany({
+  where: {
+    age: { lt: 30 },
+  },
+});
+```
+
+#### Less Than `lt` Less Than Or Equal To `lte`
+
+`lt: 20` find all records where X is less than the given value
+
+```
+await prisma.user.findMany({
+  where: {
+    age: { lt: 30 },
+  },
+});
+```
+
+#### Greater Than `gt` Greater Than Or Equal To `gte`
+
+`gt: 20` find all records where X is greater than the given value
+
+```
+await prisma.user.findMany({
+  where: {
+    age: { gt: 30 },
+  },
+});
+```
+
+### Multiple `where` making a pseudo `AND`
+
+If we stack multiple items inside the `where` it is somewhat similar to doing an `AND` in SQL
+
+```
+await prisma.user.findMany({
+  where: {
+    name: {
+      contains: person
+    }
+    age: { gt: 30 },
+  },
+});
+```
+
+#### Contains `contains`
+
+We can use this to test if the string of the value includes this substring
+Example: Does the email contain the substring ".com"
+
+```
+await prisma.user.findMany({
+  where: {
+    email: {
+      contains: "@test.com"
+    }
+  },
+});
+```
+
+#### endsWith `endsWith`
+
+Checks the end of the string
+
+```
+await prisma.user.findMany({
+  where: {
+    email: {
+      endsWith: "@test.com"
+    }
+  },
+});
+```
+
+#### startsWith `startsWith`
+
+Checks the end of the string
+
+```
+await prisma.user.findMany({
+  where: {
+    email: {
+      startsWith: "person"
+    }
+  },
+});
+```
+
+### `AND` `OR` `NOT`
+
+`AND: []` is an Array that takes each individual object that relates to a field value and meets some condition
+
+```
+await prisma.user.findMany({
+  where: {
+    AND: [
+      { email: { startsWith: "person" } },
+      { email: { endsWith: "@test.com" } },
+    ],
+  },
+});
+```
+
+`NOT: []` is an Array that takes each individual object that relates to a field value and does NOT meet some condition
+
+```
+await prisma.user.findMany({
+  where: {
+    NOT: [{ email: { startsWith: "person1" } }],
+  },
+});
+```
+
+### Queries on RELATIONSHIPS
+
+#### One to One Query
+
+We can do queries on a Relationship
+`emailUpdates` is in another Model/Table `UserPreference` but our query is on the `User` Model/Table
+
+```
+await prisma.user.findMany({
+  where: {
+    userPreference: {
+      emailUpdates: true,
+    }
+  }
+})
+```
