@@ -1112,3 +1112,206 @@ await prisma.user.findMany({
   }
 })
 ```
+
+### One to Many Query
+
+We can do queries on a one to many relationship
+
+There are useful keywords:
+
+`every`
+
+`some`
+
+`none`
+
+Here we find Users that have writtenPosts where every title of the Post starts with "Test"
+
+```
+await prisma.user.findMany({
+  where: {
+    writtenPosts: {
+      every: {
+      // some: {
+      // none: {
+        title: { startsWith: "Test", }
+      },
+    },
+  },
+});
+```
+
+## Relationship Filtering
+
+There are useful keywords:
+
+`is`
+
+`isNot`
+
+Find many Posts where the author has an age of 20
+
+```
+await prisma.post.findMany({
+  where: {
+    author: {
+      is: {
+        age: 20,
+      },
+      // isNot: {
+      //  age: 30,
+      // }
+    },
+  },
+});
+```
+
+---
+
+## Update `update()` and `updateMany()`
+
+(!) NOTE: When you are trying to do an `update()` it must be on a UNIQUE field
+
+`update` will update the FIRST user it finds that matches `data`
+you can also `include` and `select` just like with all the other queries
+
+`updateMany` will update EVERY user it finds that matches `data`
+but you CANNOT use `include` or `select`
+
+```
+await prisma.user.update({
+  where: {
+    email: "person3@test.com",
+  },
+  data: {
+    email: "person4@test.com",
+  },
+});
+```
+
+```
+await prisma.user.updateMany({
+  where: {
+    name: "Bob",
+  },
+  data: {
+    name: "Robert",
+  },
+});
+```
+
+#### Update specific keywords `increment` and `decrement` and `multiply` and `divide`
+
+We can modify numbers using `update()` and the keywords above^
+
+```
+await prisma.user.update({
+  where: {
+    email: "person1@test.com",
+  },
+  data: {
+    age: {
+      increment: 1,
+      // decrement: 1
+      // multiply: 10
+      // divide: 2
+    },
+  },
+});
+```
+
+### Add and Connect Different Relationships by Updating `connect`
+
+https://www.prisma.io/docs/reference/api-reference/prisma-client-reference#connect
+
+Instead of doing a `create` directly in the `update()`
+
+```
+await prisma.user.update({
+  where: {
+    email: "person1@test.com",
+  },
+  data: {
+    userPreference: {
+      create: {
+        emailUpdates: true,
+      },
+    },
+  },
+});
+```
+
+We can instead `connect` a relationship of two pre-existing records(objects?)
+
+```
+await prisma.user.update({
+  where: {
+    email: "person1@test.com",
+  },
+  data: {
+    userPreference: {
+      connect: {
+        id: "127acbb7-b8b3-461b-957d-2cfec4e524c1",
+      },
+    },
+  },
+});
+```
+
+### Remove a Relationship by Updating `disconnect`
+
+https://www.prisma.io/docs/reference/api-reference/prisma-client-reference#disconnect
+
+We can also `disconnect` relationships that already exist
+
+```
+await prisma.user.update({
+  where: {
+    email: "person1@test.com",
+  },
+  data: {
+    userPreference: {
+      disconnect: true // because this is a one-to-one relationship
+    },
+  },
+});
+```
+
+#### `connect` also available in `create()`
+
+You can do `connect` anytime you use `create()`
+
+And you can use `connect` and `disconnect` anytime you use `update()`
+
+### Delete `delete()` and `deleteMany()`
+
+`delete()` only deletes one record and it MUST BE ON A UNIQUE FIELD
+
+It returns the record it has just deleted
+
+If there is no record we get an error:
+`An operation failed because it depends on one or more records that were required but not found. Record to delete does not exist.`
+
+```
+await prisma.user.delete({
+  where: {
+    email: "person3@test.com",
+  },
+});
+```
+
+`deleteMany()` on its own will delete all records from that table.
+
+But we can also provide criteria.
+
+For example: To delete all Users where the age is less than 18
+
+```
+await prisma.user.deleteMany({
+    where: {
+      age: { lt: 18 },
+    },
+  });
+```
+
+---
